@@ -1,0 +1,742 @@
+---
+title: "Linear Regression Models Project Prep"
+  author: "Siwei Liu sl4224"
+date: "11/12/2018"
+output: pdf_document
+---
+
+### Note: this rmd file is more like a scratch, so the order of the plot may not be the same as in the written report in word, but the content and the plot in my word written report are exactly based on this rmd file.
+
+# Read in data
+```{r}
+library(ggplot2)
+library(GGally)
+# data
+df <- read.csv("salary.txt",header=T)
+# Names of variables 
+names(df)
+# Take a peak at the data (try other common functions) 
+head(df)
+str(df)
+```
+# Some exploratory analysis:
+```{r warning=FALSE}
+# wage-edu
+ggplot(aes(x = edu, y = log(wage)), data = df) +
+  geom_point(alpha = 0.25)+
+  geom_smooth() 
+
+```
+```{r warning=FALSE}
+# wage-exp
+ggplot(aes(x = exp, y = log(wage)), data = df) +
+  geom_point(alpha = 0.25,color="skyblue2")+
+  xlab("Experience")+
+  geom_smooth(color="black") +
+  theme_minimal()
+```
+
+```{r warning=FALSE}
+library(gridExtra)
+
+# grid.arrange(
+#   p3,
+#   p3,
+#   p3,
+#   nrow = 1,
+#   top = "Title of the page",
+#   bottom = textGrob(
+#     "this footnote is right-justified",
+#     gp = gpar(fontface = 3, fontsize = 9),
+#     hjust = 1,
+#     x = 1
+#   )
+# )
+# wage-city
+p1 <- ggplot(aes(x = city, y =log(wage), fill = city), data = df) + 
+  geom_boxplot() 
+# wage-reg
+p2<- ggplot(aes(x = reg, y = log(wage), fill = reg), data = df) +
+  geom_boxplot() +
+  xlab("region")
+# wage-race
+p3<- ggplot(aes(x = race, y = log(wage), fill = race), data = df) +
+  geom_boxplot()
+# wage-deg
+p4<- ggplot(aes(x = deg, y = log(wage), fill = deg), data = df) +
+  geom_boxplot() +
+  xlab("degree")
+
+grid.arrange(p1, p2, p3,p4,nrow = 2,ncol=2)
+```
+```{r warning=FALSE}
+# wage-reg
+ggplot(aes(x = reg, y = log(wage), fill = reg), data = df) +
+  geom_boxplot() 
+```
+```{r }
+# wage-race
+ggplot(aes(x = race, y = log(wage), fill = race), data = df) +
+  geom_boxplot() 
+```
+```{r}
+# wage-deg
+ggplot(aes(x = deg, y = log(wage), fill = deg), data = df) +
+  geom_boxplot() 
+```
+```{r}
+# wage-com
+ggplot(aes(x = com, y = log(wage)), data = df) +
+  geom_point(alpha = 0.25,color="skyblue2")+
+  geom_smooth(color="black") +
+  xlab("Comuting Distance")+
+  theme_minimal()
+```
+```{r}
+# wage-emp
+ggplot(aes(x = com, y = log(wage)), data = df) +
+  geom_point(alpha = 0.25)+
+  geom_smooth() 
+```
+```{r}
+
+```
+
+
+# IV. Appendix
+## Model Selection
+### Rough final model
+
+Let's start by including every variable without transformations. 
+```{r}
+# Rough model 1 
+r.model.1 <- lm(wage~race+edu+exp+city+reg+deg+com+emp,data=df) 
+summary(r.model.1)
+AIC(r.model.1)
+```
+```{r}
+#QQ plot of the rough model 1
+qqnorm(rstudent(r.model.1))
+qqline(rstudent(r.model.1))
+```
+
+The above model isn't fitting the data very well and the QQplot shows a large deviation from normality. For r.model.1 the coefficient of determination is 22\% and the aic is 367857.3. Let's try an easy fix, i.e., log the wages. 
+
+
+```{r}
+# Rough model 2 
+r.model.2 <- lm(log(wage)~race+edu+exp+city+reg+deg+com+emp,data=df)
+summary(r.model.2)
+AIC(r.model.2)
+AIC(r.model.2) < AIC(r.model.1)
+qqnorm(rstudent(r.model.2))
+qqline(rstudent(r.model.2))
+```
+This model significantly increased the explanatory power of our model, i.e., the coefficient of determination is 29\% and the aic is an entire order of magnitude smaller (39530.07 < 367857.3). 
+
+
+
+```{r}
+# Delete the com variable?
+r.model.2 <- lm(log(wage)~race+edu+exp+city+reg+deg+com+emp,data=df)
+r.model.3 = lm(log(wage)~race+edu+exp+city+reg+deg+emp,data=df)
+AIC(r.model.3)
+AIC(r.model.2)
+AIC(r.model.3) < AIC(r.model.2)
+```
+
+```{r}
+# According to EDA plots with log(wage) and exp, there is an obvious curviture pattern,let's see the if the squre transformation is done, whether the AIC is going to drop and whether the coefficient of determination is going to increse a lot.
+my.model.1 = lm(log(wage)~race+edu+poly(exp,2)+city+reg+deg+emp,data=df)
+summary(my.model.1)
+AIC(my.model.1)
+AIC(my.model.1) < AIC(r.model.3)
+```
+
+```{r}
+# boxplot before the log(wage) transformation
+boxplot(df$wage~df$race,main="Wage by Race",ylab="Wages")
+```
+```{r}
+# boxplot after the log(wage) transformation
+boxplot(log(df$wage)~df$race,main="Wage by Race",ylab="Wages")
+```
+## Use the best subset as a supportive method but not completely rely on it
+```{r warning=FALSE}
+library(bestglm)
+# regsubsets.sub = regsubsets(x=subset(df,select=-wage), y=df$wage)
+data.matrix = data.frame(df$edu,df$exp,df$city,df$reg,df$race,df$deg,df$com,df$emp,df$wage)
+bestglm(data.matrix,IC="AIC")
+
+```
+
+```{r}
+# boxplot(log(df$wage)~df$exp,main="Wage by Experience",ylab="Wages")
+# lines(supsmu(df$exp,log(df$wage)),col="purple")
+```
+# The colinearity
+```{r}
+cor(df$exp,(df$exp)^2)
+
+# Correlation (continuous)
+cor(subset(df,select=c("edu","exp","com","emp")))
+```
+
+# Look for interacitons using plots and AIC 
+
+  
+
+```{r}
+# First look at log(wage) against education.  This first plot doesn't show too much except there is some relation ship between log(wages) against education.
+# # With line
+# # boxplot(log(df$wage)~df$edu)
+# # abline(lm(log(df$wage)~df$edu),col="purple")
+# 
+# # log(wage)-edu With smoother
+# boxplot(log(df$wage)~df$edu)
+# lines(supsmu(df$edu,log(df$wage)),col="purple")
+# 
+# # log(wage)-exp With smoother
+# boxplot(log(df$wage)~df$exp)
+# lines(supsmu(df$exp,log(df$wage)),col="purple")
+```
+
+If the lines are parallel-ish, then log(wage) does not depend on a statistical interaction between race and against education.  
+
+# Interaction 
+## 1. race-education
+```{r}
+# First define logical variables 
+black <- df$race=="black"
+white <- df$race=="white"
+other <- df$race=="other"
+
+# Scatter plot with smoothers for each race level
+plot(df$edu,log(df$wage),col="lightgrey",xlab="Education",ylab="log(Wages)")
+abline(lm(log(df$wage)[black]~df$edu[black]),col=2)
+abline(lm(log(df$wage)[white]~df$edu[white]),col=3)
+abline(lm(log(df$wage)[other]~df$edu[other]),col=4)
+legend("topleft",legend=c("Black","White","Other"),fill=2:(length(levels(df$race))+1))
+#legend("topright",legend=c("Black","White","Other"),col=c(2,3,4),lty=c(1,1,1))
+```
+Looks close to parallel. An interaction between race and education probably shouldn't be included. Let's look at this claim using AIC!
+
+```{r}
+inter.model.1 <- lm(log(wage)~race+race*edu+edu+poly(exp,2)+city+reg+deg+emp,data=df)
+summary(inter.model.1)
+AIC(my.model.1)
+AIC(inter.model.1)
+```
+The coefficient of determination didn't have a noticeable increase so is the aic statistic. So, I will not include the interaction term with respect to race and education.
+
+## 2. race-exp
+```{r}
+# First define logical variables 
+black <- df$race=="black"
+white <- df$race=="white"
+other <- df$race=="other"
+
+# Scatter plot with smoothers for each race level
+plot(df$exp,log(df$wage),col="lightgrey",xlab="Experience",ylab="log(Wages)")
+abline(lm(log(df$wage)[black]~df$edu[black]),col=2)
+abline(lm(log(df$wage)[white]~df$edu[white]),col=3)
+abline(lm(log(df$wage)[other]~df$edu[other]),col=4)
+legend("topleft",legend=c("Black","White","Other"),fill=2:(length(levels(df$race))+1))
+#legend("topright",legend=c("Black","White","Other"),col=c(2,3,4),lty=c(1,1,1))
+```
+Also looks close to parallel. An interaction between race and experience probably shouldn't be included. Let's look at this claim using AIC.
+```{r}
+inter.model.2 <- lm(log(wage)~race+edu+poly(exp,2)+race*exp+city+reg+deg+emp,data=df)
+summary(inter.model.2)
+AIC(my.model.1)
+AIC(inter.model.2)
+AIC(inter.model.2)<AIC(my.model.1)
+```
+The coefficient of determination didn't have a noticeable increase and the AIC statistic is still lower for the non-interaction model. So, I will not include the interaction term with respect to race and experience.
+
+## 3. race-city
+```{r}
+# Plot to see if there is any interaction between race and city
+City <- df$city
+Race <- df$race
+Wages <- df$wage
+interaction.plot(Race,City,log(Wages))
+```
+Seems parallel, also see AIC:
+```{r}
+inter.model.3 <- lm(log(wage)~race+edu+poly(exp,2)+city+city*race+reg+deg+emp,data=df)
+summary(inter.model.3)
+AIC(my.model.1)
+AIC(inter.model.3)
+AIC(inter.model.3)<AIC(my.model.1)
+```
+The coefficient of determination didn't have a noticeable increase and the AIC statistic is still lower for the non-interaction model. So, I will not include the interaction term with respect to race and city.
+
+## 4. race-reg
+```{r}
+Reg <- df$reg
+Race <- df$race
+Wages <- df$wage
+interaction.plot(Race,Reg,log(Wages))
+```
+```{r}
+Northeast = ifelse(df$reg=="northeast",1,0)
+Midwest = ifelse(df$reg=="midwest",1,0)
+West = ifelse(df$reg=="west",1,0)
+
+
+inter.model.4 <- lm(log(wage)~race+edu+poly(exp,2)+city+Northeast+Midwest+West+West:race+deg+emp,data=df)
+summary(inter.model.4)
+AIC(my.model.1)
+AIC(inter.model.4)
+AIC(inter.model.4)<AIC(my.model.1)
+
+```
+
+
+## 5. race-deg
+```{r}
+Deg <- df$deg
+Race <- df$race
+Wages <- df$wage
+interaction.plot(Race,Deg,log(Wages))
+```
+```{r}
+inter.model.5 <- lm(log(wage)~race+edu+poly(exp,2)+race*deg+city+reg+deg+emp,data=df)
+summary(inter.model.5)
+AIC(my.model.1)
+AIC(inter.model.5)
+AIC(inter.model.5)<AIC(my.model.1)
+```
+The coefficient of determination didn't have a noticeable increase and the AIC statistic is still lower for the non-interaction model. So, I will not include the interaction term with respect to race and degree.
+
+## 6. race-emp
+```{r}
+# First define logical variables 
+black <- df$race=="black"
+white <- df$race=="white"
+other <- df$race=="other"
+
+# Scatter plot with smoothers for each race level
+plot(df$emp,log(df$wage),col="lightgrey",xlab="Number of Employee",ylab="log(Wages)",xlim = c(0,100),ylim = c(4,8))
+abline(lm(log(df$wage)[black]~df$edu[black]),col=2)
+abline(lm(log(df$wage)[white]~df$edu[white]),col=3)
+abline(lm(log(df$wage)[other]~df$edu[other]),col=4)
+
+legend("topright",legend=c("Black","White","Other"),col=c(2,3,4),lty=c(1,1,1))
+```
+```{r}
+inter.model.6 <- lm(log(wage)~race+edu+poly(exp,2)+race*emp+city+reg+deg+emp,data=df)
+summary(inter.model.6)
+AIC(my.model.1)
+AIC(inter.model.6)
+AIC(inter.model.6)<AIC(my.model.1)
+```
+## 7. reg- city  
+```{r}
+City <- df$city
+Region <- df$reg
+Wages <- df$wage
+interaction.plot(City,Region,log(Wages))
+```
+
+According to the above plot, the only level of region that interacts with city is west. Below is the result that we include the full interaction between region and city. 
+
+```{r}
+Northeast = ifelse(df$reg=="northeast",1,0)
+Midwest = ifelse(df$reg=="midwest",1,0)
+West = ifelse(df$reg=="west",1,0)
+
+inter.model.7 <- lm(log(wage)~race+edu+poly(exp,2)+deg+emp+city+city:West+West+Midwest+
+                      Northeast,data=df)
+summary(inter.model.7)
+AIC(my.model.1)
+AIC(inter.model.7)
+AIC(inter.model.7)<AIC(my.model.1)
+```
+
+## 8. reg-deg
+```{r}
+Deg <- df$deg
+Region <- df$reg
+Wages <- df$wage
+interaction.plot(Deg,Region,log(Wages))
+```
+```{r}
+inter.model.8 <- lm(log(wage)~race+edu+poly(exp,2)+deg+emp+city+deg:West+West+Midwest+
+                      Northeast,data=df)
+summary(inter.model.8)
+AIC(my.model.1)
+AIC(inter.model.8)
+AIC(inter.model.8)<AIC(my.model.1)
+```
+## 9. reg-edu
+```{r}
+# First define logical variables 
+northeast.plot <- df$reg=="northeast"
+west.plot <- df$reg=="west"
+midwest <- df$reg=="midwest"
+south <- df$reg=="south"
+
+# Scatter plot with smoothers for each race level
+plot(df$edu,log(df$wage),col="lightgrey",xlab="Education",ylab="log(Wages)")
+abline(lm(log(df$wage)[west.plot]~df$edu[west.plot]),col=2)
+abline(lm(log(df$wage)[northeast.plot]~df$edu[northeast.plot]),col=3)
+abline(lm(log(df$wage)[midwest]~df$edu[midwest]),col=4)
+abline(lm(log(df$wage)[south]~df$edu[south]),col=5)
+legend("topleft",legend=c("northeast","west","midwest","south"),fill=2:(length(levels(df$reg))+1))
+#legend("topright",legend=c("Black","White","Other"),col=c(2,3,4),lty=c(1,1,1))
+```
+
+## 10. reg-exp
+```{r}
+northeast.plot <- df$reg=="northeast"
+west.plot <- df$reg=="west"
+midwest <- df$reg=="midwest"
+south <- df$reg=="south"
+
+# Scatter plot with smoothers for each race level
+plot(df$exp,log(df$wage),col="lightgrey",xlab="Experience",ylab="log(Wages)")
+abline(lm(log(df$wage)[west.plot]~df$exp[west.plot]),col=2)
+abline(lm(log(df$wage)[northeast.plot]~df$exp[northeast.plot]),col=3)
+abline(lm(log(df$wage)[midwest]~df$exp[midwest]),col=4)
+abline(lm(log(df$wage)[south]~df$exp[south]),col=5)
+legend("topleft",legend=c("northeast","west","midwest","south"),fill=2:(length(levels(df$reg))+1))
+```
+```{r}
+inter.model.10 <- lm(log(wage)~race+edu+poly(exp,2)+deg+emp+city+exp:Midwest+West+Midwest+
+                      Northeast,data=df)
+summary(inter.model.10)
+AIC(my.model.1)
+AIC(inter.model.10)
+AIC(inter.model.10)<AIC(my.model.1)
+```
+
+## 11. reg-emp
+```{r}
+northeast.plot <- df$reg=="northeast"
+west.plot <- df$reg=="west"
+midwest <- df$reg=="midwest"
+south <- df$reg=="south"
+
+# Scatter plot with smoothers for each race level
+plot(df$emp,log(df$wage),col="lightgrey",xlab="Number of employee",ylab="log(Wages)")
+abline(lm(log(df$wage)[west.plot]~df$emp[west.plot]),col=2)
+abline(lm(log(df$wage)[northeast.plot]~df$emp[northeast.plot]),col=3)
+abline(lm(log(df$wage)[midwest]~df$emp[midwest]),col=4)
+abline(lm(log(df$wage)[south]~df$emp[south]),col=5)
+legend("topleft",legend=c("northeast","west","midwest","south"),fill=2:(length(levels(df$reg))+1))
+```
+
+## 12.edu-exp
+
+## 13.edu-city
+```{r}
+# First define logical variables 
+city <- df$city=="yes"
+non.city <- df$city=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$edu,log(df$wage),col="lightgrey",xlab="Education",ylab="log(Wages)")
+abline(lm(log(df$wage)[city]~df$edu[city]),col=2)
+abline(lm(log(df$wage)[non.city]~df$edu[non.city]),col=3)
+
+legend("topright",legend=c("city","non.city"),col=c(2,3),lty=c(1,1))
+```
+```{r}
+inter.model.13 <- lm(log(wage)~race+edu+poly(exp,2)+deg+emp+city+reg+edu:city,data=df)
+summary(inter.model.13)
+AIC(my.model.1)
+AIC(inter.model.13)
+AIC(inter.model.13)<AIC(my.model.1)
+```
+
+## 14.edu-deg
+```{r}
+# First define logical variables 
+deg <- df$deg=="yes"
+no.deg <- df$deg=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$edu,log(df$wage),col="lightgrey",xlab="Education",ylab="log(Wages)")
+abline(lm(log(df$wage)[deg]~df$edu[deg]),col=2)
+abline(lm(log(df$wage)[no.deg]~df$edu[no.deg]),col=3)
+
+legend("topright",legend=c("deg","no.deg"),col=c(2,3),lty=c(1,1))
+```
+```{r}
+inter.model.14 <- lm(log(wage)~race+edu+poly(exp,2)+deg+emp+city+reg+edu:deg,data=df)
+summary(inter.model.14)
+AIC(my.model.1)
+AIC(inter.model.14)
+AIC(inter.model.14)<AIC(my.model.1)
+```
+
+## 15.edu-emp
+
+## 16.exp-city
+```{r}
+# First define logical variables 
+city <- df$city=="yes"
+non.city <- df$city=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$exp,log(df$wage),col="lightgrey",xlab="Experience",ylab="log(Wages)")
+abline(lm(log(df$wage)[city]~df$exp[city]),col=2)
+abline(lm(log(df$wage)[non.city]~df$exp[non.city]),col=3)
+
+legend("topright",legend=c("city","non.city"),col=c(2,3),lty=c(1,1))
+```
+
+## 17.exp.deg
+```{r}
+# First define logical variables 
+deg <- df$deg=="yes"
+no.deg <- df$deg=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$exp,log(df$wage),col="lightgrey",xlab="Experience",ylab="log(Wages)")
+abline(lm(log(df$wage)[deg]~df$exp[deg]),col=2)
+abline(lm(log(df$wage)[no.deg]~df$exp[no.deg]),col=3)
+
+legend("topright",legend=c("deg","no.deg"),col=c(2,3),lty=c(1,1))
+```
+
+## 18.exp-emp
+
+## 19.city-deg
+```{r}
+Deg <- df$deg
+City <- df$city
+Wages <- df$wage
+interaction.plot(City,Deg,log(Wages))
+```
+
+## city-emp
+```{r}
+# First define logical variables 
+city <- df$city=="yes"
+non.city <- df$city=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$emp,log(df$wage),col="lightgrey",xlab="Number of employee",ylab="log(Wages)")
+abline(lm(log(df$wage)[city]~df$emp[city]),col=2)
+abline(lm(log(df$wage)[non.city]~df$emp[non.city]),col=3)
+
+legend("topright",legend=c("city","non.city"),col=c(2,3),lty=c(1,1))
+```
+
+## emp-deg
+```{r}
+# First define logical variables 
+deg <- df$deg=="yes"
+no.deg <- df$deg=="no"
+
+# Scatter plot with smoothers for each race level
+plot(df$emp,log(df$wage),col="lightgrey",xlab="Number of employee",ylab="log(Wages)")
+abline(lm(log(df$wage)[deg]~df$emp[deg]),col=2)
+abline(lm(log(df$wage)[no.deg]~df$emp[no.deg]),col=3)
+
+legend("topright",legend=c("deg","no.deg"),col=c(2,3),lty=c(1,1))
+```
+
+# Final Model (See if R squared and AIC is satisfying)
+```{r}
+final.model = lm(log(wage)~race+edu+poly(exp,2)+city+city:West+West+Northeast+Midwest+deg+emp+edu*city,data=df)
+
+summary(final.model)
+AIC(final.model)
+```
+
+
+# Model validation 
+
+## Diagnostic plots
+```{r}
+par(mfrow=c(2,3))
+#1.QQ-plot
+qqnorm(rstudent(final.model),main="QQ-Plot")
+qqline(rstudent(final.model))
+
+# 2.box-plot
+boxplot(rstudent(final.model),main="Box Plot",ylab="Deleted Residuals")
+
+# 3.Line plot
+n = nrow(df)
+plot(1:n,rstudent(final.model),main="Line Plot",ylab="Deleted Residuals",xlab="")
+abline(h=0,lty=3)
+lines(1:n,rstudent(final.model),col=2)
+
+# 4.Residual Plot
+plot(predict(final.model),rstudent(final.model),main="Residual Plot",
+     xlab="Y-hat",ylab="Deleted Residuals")
+abline(h=0,lty=2)
+lines(supsmu(predict(final.model),rstudent(final.model)),col=2)
+
+# 5.Residual Plot (squared)
+plot(predict(final.model),(rstudent(final.model))^2,main="Residual Plot",xlab="Y-hat",ylab="Squared Deleted Residuals")
+abline(h=0,lty=2)
+lines(supsmu(predict(final.model),(rstudent(final.model))^2),col=2)
+
+
+```
+```{r}
+# 2.box-plot
+boxplot(rstudent(final.model),main="Box Plot",ylab="Deleted Residuals")
+```
+```{r}
+# 3.Line plot
+n = nrow(df)
+plot(1:n,rstudent(final.model),main="Line Plot",ylab="Deleted Residuals",xlab="")
+abline(h=0,lty=3)
+lines(1:n,rstudent(final.model),col=2)
+```
+```{r}
+# 4.Residual Plot
+plot(predict(final.model),rstudent(final.model),main="Residual Plot",
+     xlab="Y-hat",ylab="Deleted Residuals")
+abline(h=0,lty=2)
+lines(supsmu(predict(final.model),rstudent(final.model)),col=2)
+```
+```{r}
+# 5.Residual Plot (squared)
+plot(predict(final.model),(rstudent(final.model))^2,main="Residual Plot",xlab="Y-hat",ylab="Squared Deleted Residuals")
+abline(h=0,lty=2)
+lines(supsmu(predict(final.model),(rstudent(final.model))^2),col=2)
+```
+
+## Choose training and validation set
+
+```{r}
+set.seed(0)
+n = round(.2*nrow(df))
+index <- sample(1:nrow(df),n,replace = F)
+train.data <- df[-index,]
+data <- train.data 
+test.data <- df[index,]
+```
+
+
+## Quality control check
+
+Ideally we want the proportion of the race levels to be the similar for the full data, training data and validation data.  This is also true for other levels of different categorical variables, e.g., **black** versus **city**.    
+
+```{r}
+# Proportion of black respondents sampled on the full data, training data and validadtion data
+sum(df$race=="black")/nrow(df)
+sum(train.data$race=="black")/nrow(train.data )
+sum(test.data$race=="black")/nrow(test.data)
+
+#Proportion of city-black respondents sampled on the full data, training data and validadtion data
+sum((df$race=="black") & (df$city=="yes"))/nrow(df)
+sum((train.data$race=="black") & (train.data$city=="yes"))/nrow(train.data) 
+sum((test.data$race=="black") & (test.data$city=="yes"))/nrow(test.data)
+
+#Proportion of no-black respondents sampled on the full data, training data and validadtion data
+sum((df$race=="black") & (df$city=="no"))/nrow(df)
+sum((train.data$race=="black") & (train.data$city=="no"))/nrow(train.data) 
+sum((test.data$race=="black") & (test.data$city=="no"))/nrow(test.data)
+
+```
+
+A more efficient way to organize this information is with the table function.
+```{r}
+# race on city
+table(df$race,df$city)/nrow(df)
+table(train.data$race,train.data$city)/nrow(train.data)
+table(test.data$race,test.data$city)/nrow(test.data)
+```
+```{r}
+# race on region
+table(df$race,df$reg)/nrow(df)
+table(train.data$race,train.data$reg)/nrow(train.data)
+table(test.data$race,test.data$reg)/nrow(test.data)
+```
+
+## Compute MSPR
+
+Below we compute the MSPR using our final model trained from the training set on the test set. First fit the final model on the training set. 
+
+```{r}
+#Just to avoid the length indifference, since I redefined west, midwest and northeast, and they are based on the dataframe
+west.train = ifelse(train.data$reg=="west",1,0)
+midwest.train = ifelse(train.data$reg=="midwest",1,0)
+northeast.train = ifelse(train.data$reg=="northeast",1,0)
+
+final.model.train = lm(log(wage)~race+edu+poly(exp,2)+city+city:west.train+west.train+northeast.train+midwest.train+deg+emp+edu*city,data=train.data)
+
+# Compute MSE 
+#Just to avoid the length indifference, since I redefined west, midwest and northeast, and they are based on the dataframe
+MSE <- sum((residuals(final.model.train))^2)/(nrow(train.data)-14)
+
+# For comparison, we can compute MSE of the earlier final model
+MSE.earler <- sum((residuals(r.model.2))^2)/(nrow(df)-11)
+```
+
+Next we have to extract the test data.  Then plug the test data in the predict function to find the Y-predictions, i.e., Y.test.  Then construct the MSPR and compare to MSE.   
+
+```{r}
+#Just to avoid the length indifference, since I redefined west, midwest and northeast, and they are based on the dataframe
+west.test = ifelse(test.data$reg=="west",1,0)
+midwest.test = ifelse(test.data$reg=="midwest",1,0)
+northeast.test = ifelse(test.data$reg=="northeast",1,0)
+
+
+final.model.test = lm(log(wage)~race+edu+poly(exp,2)+city+city:west.test+west.test+northeast.test+midwest.test+deg+emp+edu*city,data=test.data)
+
+Y.test <- test.data[,1]
+X.test <- test.data[,-1]
+n.test <- nrow(X.test)
+n.test
+#Just to avoid the length indifference, since I redefined west, midwest and northeast, and they are based on the dataframe
+Y.hat.test <- predict(final.model.test,newdata = X.test)
+length(Y.hat.test)==n.test
+MSPR <- mean((Y.test-Y.hat.test)^2)
+
+# Compare 
+MSPR
+MSE
+MSE.earler
+```
+
+The results look very bad! What happened?  We forgot to take the log of Y! 
+
+```{r}
+# MSPR
+MSPR <- mean((log(Y.test)-Y.hat.test)^2)
+
+# Compare 
+round(c(MSPR=MSPR,MSE=MSE,MSEearler=MSE.earler),4)
+```
+  
+```{r}
+# DFBETA-race
+# dfbetas(final.model)[,2]
+par(mfrow=c(1,2))
+
+n=nrow(df)
+plot(dfbetas(final.model)[,2],main="DFBETAS-raceother")
+abline(h=2/sqrt(n),col=2)
+abline(h=-2/sqrt(n),col=2)
+
+plot(dfbetas(final.model)[,3],main="DFBETAS-racewhite")
+abline(h=2/sqrt(n),col=2)
+abline(h=-2/sqrt(n),col=2)
+
+```
+
+```{r}
+df$Isblack = ifelse(df$race=="black",1,0)
+```
+```{r}
+final.model.adj = lm(log(wage)~Isblack+edu+poly(exp,2)+city+city:West+West+Northeast+Midwest+deg+emp+edu*city,data=df)
+
+summary(final.model.adj)
+```
+
+
+
+
+
+
+
